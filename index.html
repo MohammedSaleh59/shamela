@@ -1,4 +1,431 @@
+
 <!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, maximum-scale=1">
+<title>مكتبة الشاملة الذهبية🔎</title>
+
+<style>
+body{
+  font-family: Tahoma, sans-serif;
+  background:#f4f6f8;
+  margin:0;
+  padding:15px;
+}
+h2{margin:0 0 10px 0; color:#0c7b93}
+
+/* ===== شريط الأزرار ===== */
+.top-buttons{
+  display:flex;
+  gap:8px;
+  margin-bottom:10px;
+}
+.top-buttons button{
+  flex:1;
+  padding:8px;
+  border:none;
+  border-radius:20px;
+  background:#0c7b93;
+  color:#fff;
+  font-size:14px;
+  cursor:pointer;
+}
+.top-buttons button:hover{background:#095a6b}
+
+.container{display:flex; flex-wrap:wrap; gap:15px;}
+.box{
+  background:#fff;
+  border-radius:10px;
+  padding:10px;
+  flex:1;
+  min-width:280px;
+  box-shadow:0 2px 6px rgba(0,0,0,.06);
+}
+
+#cats,#authors,#books{
+  max-height:70vh;
+  overflow-y:auto;
+}
+
+.search{
+  width:100%;
+  padding:8px;
+  margin-bottom:10px;
+  border-radius:6px;
+  border:1px solid #ccc;
+  box-sizing: border-box;
+}
+
+/* تنسيق جديد لحقل بحث الكتب مع الزر */
+.search-wrapper {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.search-wrapper input {
+  flex: 1;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+.search-btn {
+  padding: 8px 15px;
+  border: none;
+  border-radius: 6px;
+  background: #0c7b93;
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+}
+.search-btn:hover { background: #095a6b; }
+
+.item{
+  padding:6px;
+  border-bottom:1px solid #eee;
+  cursor:pointer;
+}
+.item:hover{background:#f0f7fa}
+
+.badge{
+  background:#0c7b93;
+  color:#fff;
+  font-size:12px;
+  padding:2px 6px;
+  border-radius:10px;
+}
+
+/* ===== الكتب ===== */
+.book-card{
+  background:#fff;
+  border-radius:12px;
+  margin-bottom:12px;
+  overflow:hidden;
+  box-shadow:0 2px 6px rgba(0,0,0,.1);
+}
+.book-header{
+  padding:10px;
+  cursor:pointer;
+  font-weight:bold;
+  color:#0c7b93;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:#e8f2f5;
+}
+.book-header .title{
+  flex:1;
+}
+
+.book-info{
+  padding:10px;
+  display:none;
+  background:#fafafa;
+  white-space:pre-line;
+  line-height: 1.6;
+}
+.toggle-icon.open{transform:rotate(90deg)}
+.highlight{background:#ffeb3b; font-weight:bold; color:#000; border-radius: 2px;}
+</style>
+</head>
+
+<body>
+
+<h2 id="mainTitle">📚 مكتبة الشاملة الذهبية</h2>
+
+<!-- ===== أزرار التحكم ===== -->
+<div class="top-buttons">
+  <button onclick="showCats()">📂 الأقسام</button>
+  <button onclick="showAuthors()">👤 المؤلفون</button>
+  <button onclick="showBooks()">📚 الكتب</button>
+  <button onclick="showAll()">رجوع</button>
+</div>
+
+<div class="container">
+
+  <div class="box" id="catsBox">
+    <h3>الأقسام</h3>
+    <input class="search" id="catSearch" placeholder="بحث في الأقسام">
+    <div id="cats"></div>
+  </div>
+
+  <div class="box" id="authorsBox">
+    <h3>المؤلفون</h3>
+    <input class="search" id="authorSearch" placeholder="بحث في المؤلفين">
+    <div id="authors"></div>
+  </div>
+
+  <div class="box" style="flex:2" id="booksBox">
+    <h3 id="booksTitle">الكتب</h3>
+    <!-- تم التعديل هنا لإضافة زر بحث مخصص -->
+    <div class="search-wrapper">
+      <input id="bookSearch" placeholder="اكتب هنا ثم اضغط بحث أو Enter...">
+      <button class="search-btn" onclick="triggerBookSearch()">بحث</button>
+    </div>
+    <div id="books"></div>
+  </div>
+
+</div>
+
+<script>
+let currentCat=null;
+let currentAuthor=null;
+let data={books:[],categories:[]};
+
+// ===== دوال المعالجة والبحث الذكي =====
+function normalizeArabic(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/\u0670/g, 'ا')
+    .replace(/[\u0617-\u061A\u064B-\u065F\u06D6-\u06ED]/g, '') // إزالة التشكيل
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, '') // إزالة المسافات الصفرية
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ـ/g, '')
+    .replace(/ة/g, 'ه')
+    .replace(/[ؤ]/g, 'و')
+    .replace(/[ئ]/g, 'ي')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function escapeRegex(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// ===== دالة التظليل الذكية (تحل مشكلة خزيمة / خزيمه) =====
+function buildHighlightRegex(term) {
+    let p = escapeRegex(term);
+    // جعل التظليل مرناً ليتطابق مع الاختلافات الإملائية الشائعة
+    p = p.replace(/ة/g, '[ةه]')
+         .replace(/ه/g, '[ةه]')
+         .replace(/ى/g, '[ىي]')
+         .replace(/ي/g, '[ىي]')
+         .replace(/أ/g, '[أإآا]')
+         .replace(/إ/g, '[أإآا]')
+         .replace(/آ/g, '[أإآا]')
+         .replace(/ا/g, '[أإآا]');
+    return new RegExp(`(${p})`, 'gi');
+}
+
+function highlightTerms(text, terms) {
+  if (!text || !terms || terms.length === 0) return text || "";
+  let result = String(text);
+  // ترتيب الكلمات من الأطول للأقصر لتجنب تظليل أجزاء من الكلمات بشكل خاطئ
+  const sortedTerms = [...terms].sort((a, b) => b.length - a.length);
+  for (const term of sortedTerms) {
+    const regex = buildHighlightRegex(term);
+    result = result.replace(regex, '<span class="highlight">$1</span>');
+  }
+  return result;
+}
+
+// ===== تحميل البيانات =====
+fetch("library.json")
+.then(r=>r.json())
+.then(j=>{
+  data=j;
+  
+  // تحسين الأداء: تطبيع النصوص مسبقاً مرة واحدة
+  data.books.forEach(b => {
+    b._normTitle = normalizeArabic(b.title);
+    b._normAuthor = normalizeArabic(b.author || "");
+    b._normInfo = normalizeArabic(b.info || "");
+  });
+
+  document.getElementById("mainTitle").innerHTML=
+  `📚 مكتبة الشاملة الذهبية - <font color=red>${data.books.length}</font> كتاب<br><font color=blue>بحث ذكي شامل (العنوان، المؤلف، التفاصيل) 🔎</font>`;
+  
+  renderCategories(); 
+  renderAuthors(); 
+  renderBooks();
+})
+.catch(e => {
+  document.getElementById("mainTitle").innerHTML = `<font color="red">خطأ في تحميل library.json: ${e.message}</font>`;
+});
+
+/* ===== عرض ===== */
+function showCats(){
+  catsBox.style.display="block";
+  authorsBox.style.display="none";
+  booksBox.style.display="none";
+}
+function showBooks(){
+  showAll();
+  booksBox.style.display="block";
+  catsBox.style.display="none";
+  authorsBox.style.display="none";
+}
+function showAuthors(){
+  catsBox.style.display="none";
+  authorsBox.style.display="block";
+  booksBox.style.display="none";
+}
+function showAll(){
+  catsBox.style.display="block";
+  authorsBox.style.display="block";
+  booksBox.style.display="block";
+  currentCat=null; currentAuthor=null;
+  bookSearch.value="";
+  renderBooks();
+}
+
+/* ===== الأقسام ===== */
+function renderCategories(){
+  cats.innerHTML="";
+  const q=normalizeArabic(catSearch.value);
+  data.categories.filter(c=>normalizeArabic(c.name).includes(q))
+  .forEach(c=>{
+    const n=data.books.filter(b=>b.category_id==c.id).length;
+    const d=document.createElement("div");
+    d.className="item";
+    d.innerHTML=`${c.name} <span class="badge">${n}</span>`;
+    d.onclick=()=>{currentCat=c.id;currentAuthor=null;booksBox.style.display="block";catsBox.style.display="none";authorsBox.style.display="none";renderBooks();}
+    cats.appendChild(d);
+  });
+}
+
+/* ===== المؤلفون ===== */
+function renderAuthors(){
+  authors.innerHTML="";
+  const q=normalizeArabic(authorSearch.value);
+  const map={};
+  data.books.forEach(b=>map[b.author]=(map[b.author]||0)+1);
+  Object.keys(map).filter(a=>normalizeArabic(a).includes(q))
+  .forEach(a=>{
+    const d=document.createElement("div");
+    d.className="item";
+    d.innerHTML=`${a} <span class="badge">${map[a]}</span>`;
+    d.onclick=()=>{currentAuthor=a;currentCat=null;booksBox.style.display="block";catsBox.style.display="none";authorsBox.style.display="none";renderBooks();}
+    authors.appendChild(d);
+  });
+}
+
+/* ===== الكتب (مع محرك البحث الذكي الشامل) ===== */
+function renderBooks(){
+  books.innerHTML="";
+  const rawQ = bookSearch.value.trim();
+  const normQ = normalizeArabic(rawQ);
+  const terms = normQ.split(/\s+/).filter(Boolean);
+
+  // 1. التصفية المبدئية حسب القسم أو المؤلف
+  let list = data.books.filter(b=>{
+    if(currentCat && b.category_id!=currentCat) return false;
+    if(currentAuthor && b.author!=currentAuthor) return false;
+    return true;
+  });
+
+  // 2. تطبيق محرك البحث الذكي والترتيب إذا كان هناك نص بحث
+  if (terms.length > 0) {
+    list = list.map(b => {
+      let score = 0;
+      
+      if (b._normTitle.includes(normQ)) score += 40;
+
+      if (terms.length > 0) {
+        const firstTerm = terms[0];
+        const startForms = [firstTerm, 'و'+firstTerm, 'ف'+firstTerm, 'ب'+firstTerm, 'ك'+firstTerm, 'ل'+firstTerm];
+        if (startForms.some(f => b._normTitle.startsWith(f))) score += 30;
+      }
+
+      if (terms.length > 1 && terms.every(t => b._normTitle.includes(t))) score += 20;
+      if (terms.some(t => b._normTitle.includes(t))) score += 10;
+
+      if (score === 0) {
+        if (terms.some(t => b._normAuthor.includes(t) || b._normInfo.includes(t))) score += 5;
+      }
+
+      return { ...b, _score: score };
+    }).filter(b => b._score > 0);
+
+    list.sort((a, b) => b._score - a._score);
+    list.forEach(b => delete b._score);
+  }
+
+  // 3. تحديث العناوين
+  const label = bookLabel(list.length);
+  if(currentCat){
+    const cat = data.categories.find(c => c.id === currentCat);
+    booksTitle.textContent = `📂 ${cat.name} (${list.length}) ${label}`;
+  }
+  else if(currentAuthor){
+    booksTitle.textContent = `👤 ${currentAuthor} (${list.length}) ${label}`;
+  }
+  else{
+    booksTitle.textContent = `📚 الكتب (${list.length}) ${label}`;
+  }
+
+  // 4. رسم النتائج مع تظليل شامل (العنوان، المؤلف، والوصف info)
+  list.forEach(b=>{
+    const d=document.createElement("div");
+    d.className="book-card";
+    
+    const highlightedTitle = highlightTerms(b.title, terms);
+    const highlightedAuthor = highlightTerms(b.author, terms);
+    const highlightedInfo = highlightTerms(b.info, terms); 
+
+    d.innerHTML=`
+     <div class="book-header">
+      <span class="title">${highlightedTitle}</span>
+      <span class="toggle-icon">▶</span>
+    </div>
+     <div class="book-info">✍️ ${highlightedAuthor}\n\n${highlightedInfo}</div>`;
+     
+    const h=d.querySelector(".book-header");
+    const i=d.querySelector(".book-info");
+    const ic=d.querySelector(".toggle-icon");
+    h.onclick=()=>{
+      i.style.display=i.style.display=="block"?"none":"block";
+      ic.classList.toggle("open");
+    }
+    books.appendChild(d);
+  });
+}
+
+function bookLabel(count){
+  if(count === 0) return "";
+  if(count === 1) return "كتاب واحد";
+  if(count === 2) return "كتابان";
+  if(count >= 3 && count <= 9) return "كتب";
+  return "كتاب";
+}
+
+/* ===== أحداث البحث ===== */
+// البحث في الأقسام والمؤلفين يظل فورياً لأن قائمتهما صغيرة ولا تسبب ثقلاً
+catSearch.oninput = renderCategories;
+authorSearch.oninput = renderAuthors;
+
+// إلغاء البحث التلقائي للكتب لمنع الثقل، والاستعاضة عنه بالزر أو مفتاح Enter
+function triggerBookSearch() {
+  renderBooks();
+}
+
+bookSearch.onkeydown = function(e) {
+  if (e.key === 'Enter') {
+    triggerBookSearch();
+  }
+};
+
+// ===== تفريغ الحقول عند تحديث الصفحة =====
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('catSearch').value = '';
+  document.getElementById('authorSearch').value = '';
+  document.getElementById('bookSearch').value = '';
+  currentCat = null;
+  currentAuthor = null;
+});
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js")
+    .then(()=>console.log("PWA Ready"))
+    .catch(err=>console.error("SW error", err));
+}
+</script>
+
+</body>
+</html>
+
+<!-- <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -108,7 +535,7 @@ h2{margin:0 0 10px 0; color:#0c7b93}
 
 <h2 id="mainTitle">📚 مكتبة الشاملة الذهبية</h2>
 
-<!-- ===== أزرار التحكم ===== -->
+
 <div class="top-buttons">
   <button onclick="showCats()">📂 الأقسام</button>
   <button onclick="showAuthors()">👤 المؤلفون</button>
@@ -387,4 +814,4 @@ if ("serviceWorker" in navigator) {
 </script>
 
 </body>
-</html>
+</html> -->
