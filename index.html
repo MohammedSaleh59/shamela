@@ -97,9 +97,10 @@ h2{margin:0 0 10px 0; color:#0c7b93}
   display:none;
   background:#fafafa;
   white-space:pre-line;
+  line-height: 1.6;
 }
 .toggle-icon.open{transform:rotate(90deg)}
-.highlight{background:yellow; font-weight:bold;}
+.highlight{background:#ffeb3b; font-weight:bold; color:#000;}
 </style>
 </head>
 
@@ -131,7 +132,7 @@ h2{margin:0 0 10px 0; color:#0c7b93}
 
   <div class="box" style="flex:2" id="booksBox">
     <h3 id="booksTitle">الكتب</h3>
-    <input class="search" id="bookSearch" placeholder="بحث مرن في العناوين والمؤلفين">
+    <input class="search" id="bookSearch" placeholder="بحث مرن في العناوين، المؤلفين، وتفاصيل الكتاب">
     <div id="books"></div>
   </div>
 
@@ -142,7 +143,7 @@ let currentCat=null;
 let currentAuthor=null;
 let data={books:[],categories:[]};
 
-// ===== دوال المعالجة والبحث الذكي (من تطبيق القرآن) =====
+// ===== دوال المعالجة والبحث الذكي =====
 function normalizeArabic(text) {
   if (!text) return '';
   return String(text)
@@ -164,9 +165,9 @@ function escapeRegex(string) {
 }
 
 function highlightTerms(text, terms) {
-  if (!terms || terms.length === 0) return text;
-  let result = text;
-  // ترتيب الكلمات من الأطول للأقصر لتجنب تظليل أجزاء من الكلمات
+  if (!text || !terms || terms.length === 0) return text || "";
+  let result = String(text);
+  // ترتيب الكلمات من الأطول للأقصر لتجنب تظليل أجزاء من الكلمات بشكل خاطئ
   const sortedTerms = [...terms].sort((a, b) => b.length - a.length);
   for (const term of sortedTerms) {
     const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
@@ -181,7 +182,7 @@ fetch("library.json")
 .then(j=>{
   data=j;
   
-  // تحسين الأداء: تطبيع النصوص مسبقاً مرة واحدة (مثل تطبيق القرآن)
+  // تحسين الأداء: تطبيع النصوص مسبقاً مرة واحدة (بما في ذلك حقل info)
   data.books.forEach(b => {
     b._normTitle = normalizeArabic(b.title);
     b._normAuthor = normalizeArabic(b.author || "");
@@ -189,7 +190,7 @@ fetch("library.json")
   });
 
   document.getElementById("mainTitle").innerHTML=
-  `📚 مكتبة الشاملة الذهبية - <font color=red>${data.books.length}</font> كتاب<br><font color=blue>بحث ذكي ومرن (يتجاهل التشكيل والهمزات) 🔎</font>`;
+  `📚 مكتبة الشاملة الذهبية - <font color=red>${data.books.length}</font> كتاب<br><font color=blue>بحث ذكي يشمل: العنوان، المؤلف، وتفاصيل الكتاب (info) 🔎</font>`;
   
   renderCategories(); 
   renderAuthors(); 
@@ -256,7 +257,7 @@ function renderAuthors(){
   });
 }
 
-/* ===== الكتب (مع محرك البحث الذكي) ===== */
+/* ===== الكتب (مع محرك البحث الذكي الشامل) ===== */
 function renderBooks(){
   books.innerHTML="";
   const rawQ = bookSearch.value.trim();
@@ -299,7 +300,7 @@ function renderBooks(){
         score += 10;
       }
 
-      // أولوية 5: تطابق في اسم المؤلف أو معلومات الكتاب كحل بديل
+      // أولوية 5: تطابق في اسم المؤلف أو معلومات الكتاب (info) كحل بديل
       if (score === 0) {
         if (terms.some(t => b._normAuthor.includes(t) || b._normInfo.includes(t))) {
           score += 5;
@@ -329,21 +330,21 @@ function renderBooks(){
     booksTitle.textContent = `📚 الكتب (${list.length}) ${label}`;
   }
 
-  // 4. رسم النتائج
+  // 4. رسم النتائج مع تظليل شامل (العنوان، المؤلف، والوصف info)
   list.forEach(b=>{
     const d=document.createElement("div");
     d.className="book-card";
     
-    // استخدام دالة التظليل الجديدة التي تتعامل مع الكلمات المفككة
     const highlightedTitle = highlightTerms(b.title, terms);
     const highlightedAuthor = highlightTerms(b.author, terms);
+    const highlightedInfo = highlightTerms(b.info, terms); // <-- تظليل حقل info
 
     d.innerHTML=`
      <div class="book-header">
       <span class="title">${highlightedTitle}</span>
       <span class="toggle-icon">▶</span>
     </div>
-     <div class="book-info">✍️ ${highlightedAuthor}\n\n${b.info}</div>`;
+     <div class="book-info">✍️ ${highlightedAuthor}\n\n${highlightedInfo}</div>`;
      
     const h=d.querySelector(".book-header");
     const i=d.querySelector(".book-info");
